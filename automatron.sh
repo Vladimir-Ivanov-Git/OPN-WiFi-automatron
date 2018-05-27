@@ -53,8 +53,8 @@ iptables -A FORWARD -i ${AP_IFACE} -o ${INTERNET_IFACE} -j ACCEPT
 echo '1' > /proc/sys/net/ipv4/ip_forward
 
 # Apache2 fish settings
-if [ -f ./hosts.txt ]; then
-	rm -f ./hosts.txt
+if [ -f ${CURRENT_DIR}/hosts.txt ]; then
+	rm -f ${CURRENT_DIR}/hosts.txt
 fi
 
 python ${CURRENT_DIR}/Apache2-fish/apache2_setup_proxy.py -E
