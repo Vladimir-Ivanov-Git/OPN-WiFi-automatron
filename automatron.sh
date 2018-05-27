@@ -32,6 +32,21 @@ ERROR="${RED}[-]${NC} "
 SUCESS="${GREEN}[+]${NC} "
 WARNING="${ORANGE}[!]${NC} "
 
+# Delete certs and keys
+#while read -r site
+#do
+#	if ! [ -z "$site" ]; then
+#		host="${site//https:\/\//}"
+#		host="${host//http:\/\//}"
+#		rm /etc/ssl/certs/${host}.crt 2>/dev/null
+#        rm /etc/ssl/certs/${host}.pem 2>/dev/null
+#        rm /etc/ssl/private/${host}.key 2>/dev/null
+#	fi
+#done < ${CURRENT_DIR}/sites.txt
+#
+#echo "DEBUG"
+#sleep 120
+
 # Kill others copy of this script
 while read -r PID
 do
