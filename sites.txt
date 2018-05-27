@@ -1,1 +1,7 @@
-https://changeme.test
+https://m.vk.com
+https://login.vk.com
+https://m.facebook.com
+https://mobile.twitter.com
+https://online.sberbank.ru
+https://online.vtb.ru
+https://online.vtb24.ru
