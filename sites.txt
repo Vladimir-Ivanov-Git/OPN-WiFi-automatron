@@ -1,7 +1,15 @@
+https://vk.com
 https://m.vk.com
 https://login.vk.com
+
+https://facebook.com
+https://www.facebook.com
 https://m.facebook.com
+
+https://twitter.com
+https://www.twitter.com
 https://mobile.twitter.com
+
 https://online.sberbank.ru
 https://online.vtb.ru
 https://online.vtb24.ru
