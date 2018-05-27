@@ -1,0 +1,8 @@
+# JetBrains IDE
+.idea/
+
+# Configuration files
+*.conf
+
+# Text files
+*.txt
