@@ -45,6 +45,12 @@ ifconfig ${AP_IFACE} down
 ifconfig ${AP_IFACE} ${AP_IP}/${AP_MASK}
 ifconfig ${AP_IFACE} up
 
+# Check installed programs
+if ! dpkg --list | grep -qe "ii\s*apache2 "; then apt -y install apache2; fi
+if ! dpkg --list | grep -qe "ii\s*libapache2-mod-security2 "; then apt -y install libapache2-mod-security2; fi
+if ! dpkg --list | grep -qe "ii\s*hostapd "; then apt -y install hostapd; fi
+if ! dpkg --list | grep -qe "ii\s*dnsmasq "; then apt -y install dnsmasq; fi
+
 # IP forward
 iptables -t nat -F
 iptables -F
@@ -65,7 +71,7 @@ do
 		python ${CURRENT_DIR}/Apache2-fish/apache2_setup_proxy.py -q -u ${site}
 		host="${site//https:\/\//}"
 		host="${host//http:\/\//}"
-		echo -e "${AP_IP}\t${host}" >> ${CURRENT_DIR}/hosts.txt
+		echo -e "${host}" >> ${CURRENT_DIR}/hosts.txt
 	fi
 done < ${CURRENT_DIR}/sites.txt
 /etc/init.d/apache2 restart
