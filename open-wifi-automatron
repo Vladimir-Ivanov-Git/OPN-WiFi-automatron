@@ -415,9 +415,9 @@ init)
 delete_certs)
     delete_certs
     ;;
-delte_logs)
+delete_logs)
     delete_logs
     ;;
 *)
-    echo -e "${INFO}Usage: ${CURRENT_DIR}/${CURRENT_NAME} {init|start|kill|delete_certs}"
+    echo -e "${INFO}Usage: ${CURRENT_DIR}/${CURRENT_NAME} {init|start|kill|delete_certs|delete_logs}"
 esac
