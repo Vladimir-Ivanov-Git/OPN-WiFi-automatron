@@ -72,6 +72,17 @@ function delete_certs {
     done
 }
 
+# Delete all logs
+function delete_logs {
+    echo -e "${INFO}Delete all logs..."
+    sleep 15
+    find ${LOG_DIR}/apache2/ -type f -delete 2>/dev/null
+    rm -f ${LOG_DIR}/hostapd.log 2>/dev/null
+    rm -f ${LOG_DIR}/dnsmasq.log 2>/dev/null
+    rm -f ${LOG_DIR}/mdk3.log 2>/dev/null
+    find ${LOG_DIR}/tcpdump/ -type f -delete 2>/dev/null
+}
+
 # Kill others copies of this script
 function kill_others_copies {
     while read -r PID
@@ -403,6 +414,9 @@ init)
     ;;
 delete_certs)
     delete_certs
+    ;;
+delte_logs)
+    delete_logs
     ;;
 *)
     echo -e "${INFO}Usage: ${CURRENT_DIR}/${CURRENT_NAME} {init|start|kill|delete_certs}"
