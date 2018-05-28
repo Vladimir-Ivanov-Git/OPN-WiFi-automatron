@@ -62,6 +62,8 @@ function check_required_software {
 
 # Delete certs and keys
 function delete_certs {
+    echo -e "${WARNING}Delete all certs..."
+    sleep 15
     for site in ${sites[*]}
     do
             host="${site//https:\/\//}"
