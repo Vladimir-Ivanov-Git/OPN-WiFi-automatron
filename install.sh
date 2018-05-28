@@ -9,3 +9,5 @@ chmod +x ${INIT_DIR}/${SCRIPT_NAME}
 
 ${INIT_DIR}/${SCRIPT_NAME} init
 systemctl enable ${SCRIPT_NAME}.service
+
+echo "Please reboot this device!"
