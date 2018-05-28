@@ -74,7 +74,7 @@ function delete_certs {
 
 # Delete all logs
 function delete_logs {
-    echo -e "${INFO}Delete all logs..."
+    echo -e "${WARNING}Delete all logs..."
     sleep 15
     find ${LOG_DIR}/apache2/ -type f -delete 2>/dev/null
     rm -f ${LOG_DIR}/hostapd.log 2>/dev/null
