@@ -9,7 +9,6 @@
 # Short-Description:    OPEN WiFi fishing automatization script
 ### END INIT INFO
 
-MNGMT_IFACE="eth0"
 INTERNET_IFACE="eth1"
 AP_IFACE="wlan1"
 MDK3_IFACE="wlan2"
@@ -24,9 +23,6 @@ DHCP_LAST="192.168.100.250"
 DHCP_MASK="255.255.255.0"
 RESOLVE_SERVER_1="77.88.8.8"
 RESOLVE_SERVER_2="77.88.8.1"
-
-MNGMT_IP="192.168.10.1"
-MNGMT_MASK="24"
 
 DEAUTH_CHANNEL="1,2,3,4,5,6,7,8,9,10,11,12"
 
@@ -157,26 +153,6 @@ function network_settings {
             fi
         else
             echo -e "${ERROR}Interface ${MDK3_IFACE} not found, wait..."
-            sleep 10
-    fi
-    done
-
-
-    while true
-    do
-        if ip link show | grep "${MNGMT_IFACE}" >/dev/null 2>&1; then
-            echo -e "${SUCESS}Interface ${MNGMT_IFACE} exist!";
-            if ifconfig ${MNGMT_IFACE} | grep -q "inet ${MNGMT_IP}"; then
-                echo -e "${SUCESS}Interface ${MNGMT_IFACE} is configured.";
-                break
-            else
-                echo -e "${INFO}Interface ${MNGMT_IFACE} is not configured, wait..."
-                ifconfig ${MNGMT_IFACE} down
-                ifconfig ${MNGMT_IFACE} ${MNGMT_IP}/${MNGMT_MASK}
-                ifconfig ${MNGMT_IFACE} up
-            fi
-        else
-            echo -e "${ERROR}Interface ${AP_IFACE} not found, wait..."
             sleep 10
     fi
     done
@@ -367,26 +343,6 @@ function tcpdump_start {
         fi
     done &
 }
-
-# Management interface settings
-#function management_iface_settings {
-#    if ! iwconfig ${MNGMT_IFACE} | grep -q "no wireless extensions"; then
-#            cat >${CONF_DIR}/mngmt_hostapd.conf <<EOM
-#interface=${MNGMT_IFACE}
-#driver=nl80211
-#ssid=MNGMT
-#channel=6
-#wpa=2
-#wpa_passphrase=Passw0rd12#
-#wpa_key_mgmt=WPA-PSK
-#wpa_pairwise=TKIP
-#rsn_pairwise=CCMP
-#auth_algs=1
-#EOM
-#        chmod 666 ${CONF_DIR}/mngmt_hostapd.conf
-#        /usr/sbin/hostapd ${CONF_DIR}/mngmt_hostapd.conf -B
-#    fi
-#}
 
 case "$1" in
 start)
